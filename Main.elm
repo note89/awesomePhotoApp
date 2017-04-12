@@ -7,6 +7,7 @@ import Http
 import Json.Decode as Decode exposing (map5, at, int, string)
 import RemoteData as RD exposing (WebData)
 import Random
+import Animation exposing (px, turn, percent)
 
 
 main =
@@ -33,18 +34,43 @@ type alias Photo =
 
 type alias Model =
     { currentPhoto : WebData Photo
+    , spinner : Animation.State
     }
 
 
 init : ( Model, Cmd Msg )
 init =
-    Model RD.NotAsked ! [ getRandomPhoto ]
+    let
+        model =
+            { currentPhoto = RD.NotAsked
+            , spinner = beginInitialSpin <| Animation.style [ Animation.rotate (turn 0) ]
+            }
+    in
+        model ! [ getRandomPhoto ]
+
+
+beginInitialSpin spinner =
+    Animation.interrupt
+        [ Animation.loop
+            [ Animation.toWith (Animation.speed { perSecond = 4 })
+                [ Animation.rotate (turn 1) ]
+            , Animation.set [ Animation.rotate (turn 0) ]
+            ]
+        ]
+        spinner
+
+
+type alias ID =
+    Int
 
 
 type Msg
     = MorePlease
-    | GetPhoto Int
+    | GetPhoto ID
+    | GetPhotos
+    | NewPhotos (WebData (List Photo))
     | NewPhoto (WebData Photo)
+    | Animate Animation.Msg
 
 
 getRandomPhoto : Cmd Msg
@@ -58,6 +84,12 @@ update msg model =
         GetPhoto photoId ->
             ( model, getPhoto photoId )
 
+        GetPhotos ->
+            ( model, getPhotos )
+
+        NewPhotos photos ->
+            ( model, Cmd.none )
+
         MorePlease ->
             ( model, getRandomPhoto )
 
@@ -68,20 +100,32 @@ update msg model =
             in
                 ( newModel, Cmd.none )
 
+        Animate animMsg ->
+            ( { model
+                | spinner = Animation.update animMsg model.spinner
+              }
+            , Cmd.none
+            )
+
 
 
 -- VIEW
 
 
-imageHolder : WebData Photo -> Html msg
-imageHolder webDataPhoto =
-    case webDataPhoto of
+chillicornLoadingSpinner spinner =
+    div []
+        [ img (Animation.render spinner ++ [ src "/chilicorn_no_text-256.png" ]) [] ]
+
+
+imageHolder : Model -> Html msg
+imageHolder model =
+    case model.currentPhoto of
         RD.Success photo ->
             div []
                 [ img [ src photo.url ] [] ]
 
         _ ->
-            div [] []
+            chillicornLoadingSpinner model.spinner
 
 
 view : Model -> Html Msg
@@ -90,8 +134,7 @@ view model =
         [ h2 [] []
         , button [ onClick MorePlease ] [ text "More Please!" ]
         , br [] []
-          -- , img [ src model.currentPhoto.url ] []
-        , imageHolder model.currentPhoto
+        , imageHolder model
         ]
 
 
@@ -101,7 +144,9 @@ view model =
 
 subscriptions : Model -> Sub Msg
 subscriptions model =
-    Sub.none
+    Animation.subscription Animate
+        [ model.spinner
+        ]
 
 
 
@@ -116,6 +161,22 @@ decodePhoto =
         (at [ "title" ] string)
         (at [ "url" ] string)
         (at [ "thumbnailUrl" ] string)
+
+
+decodePhotos : Decode.Decoder (List Photo)
+decodePhotos =
+    Decode.list decodePhoto
+
+
+getPhotos : Cmd Msg
+getPhotos =
+    let
+        url =
+            "http://jsonplaceholder.typicode.com/photos?_start=0&_limit=50"
+    in
+        Http.get url decodePhotos
+            |> RD.sendRequest
+            |> Cmd.map NewPhotos
 
 
 getPhoto : Int -> Cmd Msg
