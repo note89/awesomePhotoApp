@@ -1,0 +1,21 @@
+/*
+  Did this with Elm but performance was bad, animation stoped while scrolling.
+*/
+
+.spin-me {
+    -webkit-animation:spin 2s linear infinite;
+    -moz-animation:spin 2s linear infinite;
+    animation:spin 2s linear infinite;
+}
+@-moz-keyframes spin { 100% { -moz-transform: rotate(360deg); } }
+@-webkit-keyframes spin { 100% { -webkit-transform: rotate(360deg); } }
+@keyframes spin { 100% { -webkit-transform: rotate(360deg); transform:rotate(360deg); } }
+
+.hover-effect{
+  cursor: pointer;
+}
+
+.hover-effect:hover {
+  transform: scale(1.05);
+  transition: all .2s;
+}
